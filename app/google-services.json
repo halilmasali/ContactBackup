@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "71527397894",
+    "project_id": "contactbackup-7429b",
+    "storage_bucket": "contactbackup-7429b.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:71527397894:android:5e27a37f2c779da9412187",
+        "android_client_info": {
+          "package_name": "com.halilmasali.contactbackup"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "71527397894-8va8c1clksn48jn8l9etrfmffk8kr4q6.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCewEp-5KVlKD4ssTChy4Yy6-jxbBNg7CI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "71527397894-8va8c1clksn48jn8l9etrfmffk8kr4q6.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
