@@ -1,3 +1,5 @@
 <resources>
     <string name="app_name">Contact Backup</string>
+    <string name="logout">Logout</string>
+    <string name="search">Search</string>
 </resources>
