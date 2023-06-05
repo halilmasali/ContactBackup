@@ -6,6 +6,7 @@ import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
+
 import android.Manifest;
 import android.annotation.SuppressLint;
 import android.content.Intent;
@@ -18,6 +19,7 @@ import android.widget.Toast;
 
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.search.SearchBar;
+import com.google.android.material.search.SearchView;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 
@@ -28,10 +30,12 @@ import java.util.List;
 public class MainActivity extends AppCompatActivity {
 
     private static final int PERMISSIONS_REQUEST_READ_CONTACTS = 100;
-    private RecyclerView recyclerViewContacts;
-    private ContactAdapter contactAdapter;
+    private RecyclerView recyclerViewContacts, recyclerViewSearch;
+    private ContactAdapter contactAdapter, searchedContactAdaptor;
     private List<ContactViewModel> contacts;
+    private List<ContactViewModel> searchedContacts;
     TextView userMail, personCount, lastUpdate;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -41,6 +45,12 @@ public class MainActivity extends AppCompatActivity {
         lastUpdate = findViewById(R.id.lastUpdate);
         recyclerViewContacts = findViewById(R.id.recyclerView);
         recyclerViewContacts.setLayoutManager(new LinearLayoutManager(this));
+
+        recyclerViewSearch = findViewById(R.id.recyclerViewSearch);
+        recyclerViewSearch.setLayoutManager(new LinearLayoutManager(this));
+        searchedContacts = new ArrayList<>();
+        searchedContactAdaptor = new ContactAdapter(searchedContacts);
+        recyclerViewSearch.setAdapter(searchedContactAdaptor);
 
         contacts = new ArrayList<>();
         contactAdapter = new ContactAdapter(contacts);
@@ -60,25 +70,53 @@ public class MainActivity extends AppCompatActivity {
             }
             return true;
         });
+        SearchView searchView = findViewById(R.id.search_view);
+        searchView.getEditText().setOnEditorActionListener((v, actionId, event) -> {
+
+            searchList(String.valueOf(searchView.getText()));
+            searchBar.setText(searchView.getText());
+            //searchView.hide();
+            return false;
+        });
     }
 
+    @SuppressLint("NotifyDataSetChanged")
+    private void searchList(String newText) {
+        searchedContacts.clear();
+        String searchText = newText.toLowerCase();
+        if (!searchText.isEmpty()) {
+            for (ContactViewModel item : contacts) {
+                if (item.getName().toLowerCase().contains(searchText)) {
+                    searchedContacts.add(item);
+                }
+            }
+            if (searchedContactAdaptor != null) {
+                searchedContactAdaptor.notifyDataSetChanged();
+            }
+        }
+    }
+
+
     private boolean checkPermission() {
-        int result = ContextCompat.checkSelfPermission(this, Manifest.permission.READ_CONTACTS);
+        int result = ContextCompat.checkSelfPermission(this,
+                Manifest.permission.READ_CONTACTS);
         return result == PackageManager.PERMISSION_GRANTED;
     }
 
     private void requestPermission() {
-        ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.READ_CONTACTS}, PERMISSIONS_REQUEST_READ_CONTACTS);
+        ActivityCompat.requestPermissions(this, new String[]{
+                Manifest.permission.READ_CONTACTS}, PERMISSIONS_REQUEST_READ_CONTACTS);
     }
 
     @Override
-    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions,
+                                           @NonNull int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         if (requestCode == PERMISSIONS_REQUEST_READ_CONTACTS) {
             if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                 readContacts();
             } else {
-                Toast.makeText(this, "Rehber erişimi izni reddedildi.", Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, "Contact access permission denied.", Toast.LENGTH_SHORT).show();
             }
         }
     }
@@ -118,7 +156,7 @@ public class MainActivity extends AppCompatActivity {
             cursor.close();
             contactAdapter.notifyDataSetChanged();
         } else {
-            Toast.makeText(this, "Rehberde kişi bulunamadı.", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "Contact not found.", Toast.LENGTH_SHORT).show();
         }
     }
 
