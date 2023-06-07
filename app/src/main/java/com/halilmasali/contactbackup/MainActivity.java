@@ -6,26 +6,44 @@ import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
 import android.Manifest;
 import android.annotation.SuppressLint;
+import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.database.Cursor;
 import android.os.Bundle;
+import android.preference.PreferenceManager;
 import android.provider.ContactsContract;
+import android.util.Log;
+import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
+import android.widget.Toolbar;
 
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.search.SearchBar;
 import com.google.android.material.search.SearchView;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
+import com.google.firebase.firestore.DocumentSnapshot;
+import com.google.firebase.firestore.FirebaseFirestore;
+import com.google.firebase.firestore.QueryDocumentSnapshot;
+import com.google.firebase.firestore.QuerySnapshot;
 
 import java.text.MessageFormat;
+import java.text.SimpleDateFormat;
+import java.time.Clock;
 import java.util.ArrayList;
+import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -34,7 +52,13 @@ public class MainActivity extends AppCompatActivity {
     private ContactAdapter contactAdapter, searchedContactAdaptor;
     private List<ContactViewModel> contacts;
     private List<ContactViewModel> searchedContacts;
-    TextView userMail, personCount, lastUpdate;
+    private List<ContactViewModel> cloudContacts = new ArrayList<>();
+    private TextView userMail, personCount, lastUpdate;
+    private SwipeRefreshLayout swipeRefresh;
+    private SharedPreferences sharedPreferences;
+    private ImageView imageSync;
+    private FirebaseFirestore firestore;
+    private String userId;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -43,9 +67,10 @@ public class MainActivity extends AppCompatActivity {
         userMail = findViewById(R.id.userMail);
         personCount = findViewById(R.id.personCount);
         lastUpdate = findViewById(R.id.lastUpdate);
+        imageSync = findViewById(R.id.imageSync);
         recyclerViewContacts = findViewById(R.id.recyclerView);
         recyclerViewContacts.setLayoutManager(new LinearLayoutManager(this));
-
+        sharedPreferences = getSharedPreferences("lastUpdate", Context.MODE_PRIVATE);
         recyclerViewSearch = findViewById(R.id.recyclerViewSearch);
         recyclerViewSearch.setLayoutManager(new LinearLayoutManager(this));
         searchedContacts = new ArrayList<>();
@@ -53,20 +78,24 @@ public class MainActivity extends AppCompatActivity {
         recyclerViewSearch.setAdapter(searchedContactAdaptor);
 
         contacts = new ArrayList<>();
-        contactAdapter = new ContactAdapter(contacts);
+        contactAdapter = new ContactAdapter(cloudContacts);
         recyclerViewContacts.setAdapter(contactAdapter);
 
+        checkAuthVerification();
+        firestoreReadData();
         if (checkPermission()) {
             readContacts();
         } else {
             requestPermission();
         }
 
-        checkAuthVerification();
+
         SearchBar searchBar = findViewById(R.id.search_bar);
         searchBar.setOnMenuItemClickListener(item -> {
             if (item.getItemId() == R.id.logout) {
                 logoutDialog();
+            } else if (item.getItemId() == R.id.deleteContacts) {
+                deleteDialog();
             }
             return true;
         });
@@ -75,9 +104,18 @@ public class MainActivity extends AppCompatActivity {
 
             searchList(String.valueOf(searchView.getText()));
             searchBar.setText(searchView.getText());
-            //searchView.hide();
             return false;
         });
+
+        //region Swipe Refresh
+        swipeRefresh = findViewById(R.id.swipeRefreshLayout);
+        swipeRefresh.setOnRefreshListener(() -> {
+            checkSyncStatus();
+            firestoreReadData();
+            swipeRefresh.setRefreshing(false);
+        });
+        //endregion
+        lastUpdate.setText(sharedPreferences.getString("lastUpdate", "Last Update:"));
     }
 
     @SuppressLint("NotifyDataSetChanged")
@@ -95,7 +133,6 @@ public class MainActivity extends AppCompatActivity {
             }
         }
     }
-
 
     private boolean checkPermission() {
         int result = ContextCompat.checkSelfPermission(this,
@@ -121,7 +158,7 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    @SuppressLint({"Range", "NotifyDataSetChanged"})
+    @SuppressLint({"Range"})
     private void readContacts() {
         Cursor cursor = getContentResolver().query(
                 ContactsContract.Contacts.CONTENT_URI,
@@ -150,14 +187,22 @@ public class MainActivity extends AppCompatActivity {
                     phoneCursor.close();
                 }
 
-                contacts.add(new ContactViewModel(displayName, phoneNumber));
+                contacts.add(new ContactViewModel(displayName, phoneNumber, contactId));
             }
-            personCount.setText(MessageFormat.format("{0} Person", cursor.getCount()));
+            //personCount.setText(MessageFormat.format("{0} Person", cursor.getCount()));
             cursor.close();
-            contactAdapter.notifyDataSetChanged();
         } else {
             Toast.makeText(this, "Contact not found.", Toast.LENGTH_SHORT).show();
         }
+    }
+
+    private boolean containsContactId(String contactId) {
+        for (ContactViewModel contact : cloudContacts) {
+            if (contact.getContactId().equals(contactId)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private void checkAuthVerification() {
@@ -168,8 +213,91 @@ public class MainActivity extends AppCompatActivity {
             Intent intent = new Intent(this, LoginActivity.class);
             startActivity(intent);
             finish();
-        } else
+        } else {
             userMail.setText(currentUser.getEmail());
+            userId = mAuth.getUid();
+            firestore = FirebaseFirestore.getInstance();
+        }
+
+    }
+
+    public void firestoreSyncData(ContactViewModel contactViewModel) {
+        Map<String, Object> data = new HashMap<>();
+        data.put("name", contactViewModel.getName());
+        data.put("phone", contactViewModel.getPhoneNumber());
+
+        if (userId != null) {
+            firestore.collection("users")
+                    .document(userId)
+                    .collection("contacts")
+                    .document(contactViewModel.getContactId())
+                    .set(data)
+                    .addOnSuccessListener(documentReference -> {
+                        Log.d("TAG", "DocumentSnapshot successfully written!");
+                        //Toast.makeText(this, "Save successfully", Toast.LENGTH_LONG).show();
+                    })
+                    .addOnFailureListener(e -> Log.w("TAG", "Error writing document", e));
+        }
+    }
+
+    @SuppressLint("NotifyDataSetChanged")
+    public void firestoreReadData() {
+        if (userId != null) {
+            cloudContacts.clear();
+            firestore.collection("users").document(userId)
+                    .collection("contacts").get()
+                    .addOnSuccessListener(queryDocumentSnapshots -> {
+                        for (QueryDocumentSnapshot document : queryDocumentSnapshots) {
+                            cloudContacts.add(new ContactViewModel(
+                                    Objects.requireNonNull(document.get("name")).toString(),
+                                    Objects.requireNonNull(document.get("phone")).toString(), document.getId()));
+
+                        }
+                        Log.d("TAG", "Cloud read success");
+                        personCount.setText(MessageFormat.format("{0} Person", cloudContacts.size()));
+                        contactAdapter.notifyDataSetChanged();
+                    })
+                    .addOnFailureListener(e -> {
+                        Log.w("TAG", "Error reading document", e);
+                        Toast.makeText(this,"Error reading document", Toast.LENGTH_SHORT).show();
+                    });
+        }
+    }
+
+    private void deleteDialog() {
+        MaterialAlertDialogBuilder dialogBuilder = new MaterialAlertDialogBuilder(this);
+        dialogBuilder.setTitle("Delete");
+        dialogBuilder.setMessage("Do you want to delete all contacts ?");
+        dialogBuilder.setCancelable(false);
+        dialogBuilder.setPositiveButton("Yes", (dialog, which) -> {
+            deleteContacts();
+        });
+        dialogBuilder.setNegativeButton("No", (dialog, which) -> {
+            dialog.dismiss();
+        });
+        dialogBuilder.show();
+    }
+
+    private void deleteContacts() {
+        firestore.collection("users").document(userId).collection("contacts")
+                .get().addOnCompleteListener(task -> {
+                    if (task.isSuccessful()) {
+                        QuerySnapshot querySnapshot = task.getResult();
+                        if (querySnapshot != null) {
+                            for (DocumentSnapshot document : querySnapshot.getDocuments()) {
+                                document.getReference().delete();
+                            }
+                            firestoreReadData();
+                            imageSync.setImageResource(R.drawable.sync_problem_24);
+                        }
+                    } else {
+                        // Handle error
+                        Exception exception = task.getException();
+                        if (exception != null) {
+                            exception.printStackTrace();
+                        }
+                    }
+                });
     }
 
     private void logoutDialog() {
@@ -187,5 +315,45 @@ public class MainActivity extends AppCompatActivity {
             dialog.dismiss();
         });
         dialogBuilder.show();
+    }
+
+    private void checkSyncStatus() {
+        List<ContactViewModel> unSyncContacts = new ArrayList<>();
+        for (ContactViewModel contact : contacts) {
+            if (!containsContactId(contact.getContactId())) {
+                unSyncContacts.add(contact);
+            }
+        }
+        if (unSyncContacts.size() > 0) {
+            MaterialAlertDialogBuilder dialogBuilder = new MaterialAlertDialogBuilder(this);
+            dialogBuilder.setTitle("Sync Request");
+            dialogBuilder.setMessage(unSyncContacts.size() + " new people found. Do you want to sync your contacts on Cloud ?");
+            dialogBuilder.setCancelable(false);
+            dialogBuilder.setPositiveButton("Yes", (dialog, which) -> {
+                for (ContactViewModel contact : unSyncContacts) {
+                    firestoreSyncData(contact);
+                }
+                Date currentDate = new Date();
+                SimpleDateFormat dateFormat = new SimpleDateFormat("dd/MM/yy - HH:mm", Locale.getDefault());
+                String formattedDateTime = dateFormat.format(currentDate);
+                String time = "Last Update:"+formattedDateTime;
+                sharedPreferences.edit().putString("lastUpdate",time).apply();
+                lastUpdate.setText(time);
+                imageSync.setImageResource(R.drawable.cloud_sync_24);
+                firestoreReadData();
+            });
+            dialogBuilder.setNegativeButton("No", (dialog, which) -> {
+                dialog.dismiss();
+                imageSync.setImageResource(R.drawable.sync_problem_24);
+            });
+            dialogBuilder.show();
+        } else if (cloudContacts == null || cloudContacts.size() < 1) {
+            for (ContactViewModel contact : contacts) {
+                firestoreSyncData(contact);
+            }
+        } else {
+            imageSync.setImageResource(R.drawable.cloud_sync_24);
+            Toast.makeText(this,"Contact backup up-to date",Toast.LENGTH_LONG).show();
+        }
     }
 }

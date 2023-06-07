@@ -2,4 +2,5 @@
     <string name="app_name">Contact Backup</string>
     <string name="search">Search</string>
     <string name="logout">Logout</string>
+    <string name="delete_contacts">Delete Contacts</string>
 </resources>

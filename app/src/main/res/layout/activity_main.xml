@@ -66,6 +66,19 @@
             android:layout_marginTop="36dp"
             android:layout_marginBottom="8dp"
             tools:text="Last Update" />
+
+
+        <ImageView
+            android:id="@+id/imageSync"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="end|top"
+            android:layout_marginTop="36dp"
+            android:layout_marginEnd="16dp"
+            android:layout_marginBottom="8dp"
+            android:scaleType="fitCenter"
+            app:srcCompat="@drawable/sync_problem_24"
+            android:importantForAccessibility="no" />
         <View
             android:id="@+id/divider"
             android:layout_width="match_parent"
