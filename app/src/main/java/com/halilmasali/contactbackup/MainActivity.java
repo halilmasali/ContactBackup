@@ -4,6 +4,7 @@ import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
+import androidx.core.splashscreen.SplashScreen;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
@@ -16,13 +17,11 @@ import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.database.Cursor;
 import android.os.Bundle;
-import android.preference.PreferenceManager;
 import android.provider.ContactsContract;
 import android.util.Log;
 import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
-import android.widget.Toolbar;
 
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.search.SearchBar;
@@ -36,7 +35,6 @@ import com.google.firebase.firestore.QuerySnapshot;
 
 import java.text.MessageFormat;
 import java.text.SimpleDateFormat;
-import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
@@ -62,6 +60,7 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        SplashScreen.installSplashScreen(this);
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         userMail = findViewById(R.id.userMail);
@@ -96,6 +95,8 @@ public class MainActivity extends AppCompatActivity {
                 logoutDialog();
             } else if (item.getItemId() == R.id.deleteContacts) {
                 deleteDialog();
+            } else if (item.getItemId() == R.id.about) {
+                aboutDialog();
             }
             return true;
         });
@@ -123,7 +124,7 @@ public class MainActivity extends AppCompatActivity {
         searchedContacts.clear();
         String searchText = newText.toLowerCase();
         if (!searchText.isEmpty()) {
-            for (ContactViewModel item : contacts) {
+            for (ContactViewModel item : cloudContacts) {
                 if (item.getName().toLowerCase().contains(searchText)) {
                     searchedContacts.add(item);
                 }
@@ -259,7 +260,7 @@ public class MainActivity extends AppCompatActivity {
                     })
                     .addOnFailureListener(e -> {
                         Log.w("TAG", "Error reading document", e);
-                        Toast.makeText(this,"Error reading document", Toast.LENGTH_SHORT).show();
+                        Toast.makeText(this, "Error reading document", Toast.LENGTH_SHORT).show();
                     });
         }
     }
@@ -336,8 +337,8 @@ public class MainActivity extends AppCompatActivity {
                 Date currentDate = new Date();
                 SimpleDateFormat dateFormat = new SimpleDateFormat("dd/MM/yy - HH:mm", Locale.getDefault());
                 String formattedDateTime = dateFormat.format(currentDate);
-                String time = "Last Update:"+formattedDateTime;
-                sharedPreferences.edit().putString("lastUpdate",time).apply();
+                String time = "Last Update:" + formattedDateTime;
+                sharedPreferences.edit().putString("lastUpdate", time).apply();
                 lastUpdate.setText(time);
                 imageSync.setImageResource(R.drawable.cloud_sync_24);
                 firestoreReadData();
@@ -353,7 +354,18 @@ public class MainActivity extends AppCompatActivity {
             }
         } else {
             imageSync.setImageResource(R.drawable.cloud_sync_24);
-            Toast.makeText(this,"Contact backup up-to date",Toast.LENGTH_LONG).show();
+            Toast.makeText(this, "Contact backup up-to date", Toast.LENGTH_LONG).show();
         }
+    }
+
+    private void aboutDialog() {
+        MaterialAlertDialogBuilder dialogBuilder = new MaterialAlertDialogBuilder(this);
+        dialogBuilder.setTitle("About");
+        dialogBuilder.setIcon(R.drawable.info_24);
+        dialogBuilder.setMessage("Developed By:\n" +
+                "Halil İbrahim Maşalı 192119017 N.Ö. \n" +
+                "Kaan Atakan Yılmaz 192113050 N.Ö.");
+        dialogBuilder.setCancelable(true);
+        dialogBuilder.show();
     }
 }
