@@ -76,11 +76,11 @@ public class LoginActivity extends AppCompatActivity {
     }
     public void helpLabel(View view) {
         if (button.getText().equals("Sign In")) {
-            button.setText("Sign Up");
-            helpLabel.setText("You have an account?  Sign In");
+            button.setText(getText(R.string.sign_up));
+            helpLabel.setText(R.string.you_have_an_account_sign_in);
         } else if (button.getText().equals("Sign Up")) {
-            button.setText("Sign In");
-            helpLabel.setText("You don't have an account?  Sign Up");
+            button.setText(getText(R.string.sign_in));
+            helpLabel.setText(getText(R.string.you_don_t_have_an_account_sign_up));
         }
     }
 }
