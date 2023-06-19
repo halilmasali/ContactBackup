@@ -161,6 +161,7 @@ public class MainActivity extends AppCompatActivity {
 
     @SuppressLint({"Range"})
     private void readContacts() {
+        contacts.clear();
         Cursor cursor = getContentResolver().query(
                 ContactsContract.Contacts.CONTENT_URI,
                 null,
@@ -190,7 +191,6 @@ public class MainActivity extends AppCompatActivity {
 
                 contacts.add(new ContactViewModel(displayName, phoneNumber, contactId));
             }
-            //personCount.setText(MessageFormat.format("{0} Person", cursor.getCount()));
             cursor.close();
         } else {
             Toast.makeText(this, "Contact not found.", Toast.LENGTH_SHORT).show();
@@ -201,6 +201,18 @@ public class MainActivity extends AppCompatActivity {
         for (ContactViewModel contact : cloudContacts) {
             if (contact.getContactId().equals(contactId)) {
                 return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean changedContact(ContactViewModel contact) {
+        for (ContactViewModel contacts : cloudContacts) {
+            if (contacts.getContactId().equals(contact.getContactId())) {
+                if (!contacts.getName().equals(contact.getName()) ||
+                        !contacts.getPhoneNumber().equals(contact.getPhoneNumber())) {
+                    return true;
+                }
             }
         }
         return false;
@@ -319,16 +331,19 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void checkSyncStatus() {
+        readContacts();
         List<ContactViewModel> unSyncContacts = new ArrayList<>();
         for (ContactViewModel contact : contacts) {
             if (!containsContactId(contact.getContactId())) {
+                unSyncContacts.add(contact);
+            } else if (changedContact(contact)) {
                 unSyncContacts.add(contact);
             }
         }
         if (unSyncContacts.size() > 0) {
             MaterialAlertDialogBuilder dialogBuilder = new MaterialAlertDialogBuilder(this);
             dialogBuilder.setTitle("Sync Request");
-            dialogBuilder.setMessage(unSyncContacts.size() + " new people found. Do you want to sync your contacts on Cloud ?");
+            dialogBuilder.setMessage(unSyncContacts.size() + " change found. Do you want to sync your contacts on Cloud ?");
             dialogBuilder.setCancelable(false);
             dialogBuilder.setPositiveButton("Yes", (dialog, which) -> {
                 for (ContactViewModel contact : unSyncContacts) {
